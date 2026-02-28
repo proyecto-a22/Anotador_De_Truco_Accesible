@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anotador de Truco Accesible</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  margin:0;
+  background:linear-gradient(to bottom,#2e2b26,#3f3a32);
+  color:#f5f5dc;
+  text-align:center;
+}
+
+h1{margin-top:15px;}
+
+.section{
+  margin:10px;
+  border:2px solid #8b6f47;
+  border-radius:8px;
+}
+
+.section button.header{
+  width:100%;
+  padding:12px;
+  background:#5c4a2f;
+  color:white;
+  font-size:18px;
+  border:none;
+  cursor:pointer;
+}
+
+.content{
+  display:none;
+  padding:10px;
+  background:#4a4033;
+}
+
+button,input{
+  font-size:18px;
+  padding:8px;
+  margin:5px;
+  border-radius:6px;
+  border:none;
+}
+
+button{
+  background:#8b6f47;
+  color:white;
+  cursor:pointer;
+}
+
+button:disabled{
+  background:#555;
+  cursor:not-allowed;
+}
+
+.score-row{
+  display:flex;
+  justify-content:space-around;
+  align-items:center;
+  margin-top:25px;
+}
+
+.score-side{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.score-number{
+  font-size:30px;
+  font-weight:bold;
+  min-width:45px;
+}
+
+.hidden{display:none;}
+
+#winnerMessage{
+  margin-top:20px;
+  font-size:20px;
+  font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<h1>Anotador de Truco</h1>
+
+<div id="menu">
+
+<div class="section">
+<button type="button" class="header" aria-expanded="false">Juego</button>
+<div class="content">
+<label><input type="radio" name="modo" value="1"> 1 vs 1</label><br>
+<label><input type="radio" name="modo" value="2"> 2 vs 2</label><br>
+<label><input type="radio" name="modo" value="3"> 3 vs 3</label>
+</div>
+</div>
+
+<div class="section">
+<button type="button" class="header" aria-expanded="false">Accesibilidad</button>
+<div class="content">
+<label><input type="checkbox" id="voz"> Indicaciones en voz alta</label><br>
+<label><input type="checkbox" id="sonidos"> Sonidos del sistema</label>
+</div>
+</div>
+
+<div class="section">
+<button type="button" class="header" aria-expanded="false">Más opciones</button>
+<div class="content">
+<label><input type="checkbox" id="musicaMenu"> Música en menú</label><br>
+<label><input type="checkbox" id="musicaPartida"> Música durante partida</label>
+</div>
+</div>
+
+<!-- Botón de iniciar juego ahora empieza deshabilitado -->
+<button type="button" id="iniciarConfig" disabled>Iniciar juego</button>
+</div>
+
+<div id="configEquipos" class="hidden">
+<h2>Iniciales</h2>
+<input maxlength="2" id="equipo1" placeholder="Izq">
+<input maxlength="2" id="equipo2" placeholder="Der">
+<br>
+<button type="button" id="comenzarPartida">Iniciar partida</button>
+</div>
+
+<div id="partida" class="hidden">
+
+<div class="score-row">
+
+<div class="score-side">
+<button type="button" id="menos1">-1</button>
+<button type="button" id="mas1">+1</button>
+<div id="score1" class="score-number" aria-live="polite">0</div>
+</div>
+
+<div class="score-side">
+<div id="score2" class="score-number" aria-live="polite">0</div>
+<button type="button" id="mas2">+1</button>
+<button type="button" id="menos2">-1</button>
+</div>
+
+</div>
+
+<button type="button" id="leerMarcador">Leer marcadores</button>
+
+<div id="winnerMessage"></div>
+<button type="button" id="nuevaPartida" class="hidden">Nueva partida</button>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+let score1=0, score2=0;
+let nombre1="", nombre2="";
+let audioCtx=null, masterGain=null;
+let musicaInterval=null;
+let vozSeleccionada=null;
+let buenas1=false, buenas2=false;
+let audioDesbloqueado=false;
+
+// ===============================
+// 🔓 DESBLOQUEO REAL PARA ANDROID
+// ===============================
+function desbloquearAudio(){
+  if(audioDesbloqueado) return;
+
+  try{
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.2;
+    masterGain.connect(audioCtx.destination);
+
+    if(audioCtx.state === "suspended"){
+      audioCtx.resume();
+    }
+
+    // tono silencioso para forzar activación
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.05);
+
+    audioDesbloqueado = true;
+
+  }catch(e){
+    console.log("Error desbloqueando audio:", e);
+  }
+}
+
+// ===============================
+// 🎧 SONIDOS
+// ===============================
+function tone(freq,dur,type="sine",vol=0.1){
+  if(!document.getElementById("sonidos").checked) return;
+  if(!audioCtx) return;
+
+  try{
+    let osc=audioCtx.createOscillator();
+    let gain=audioCtx.createGain();
+    osc.type=type;
+    osc.frequency.setValueAtTime(freq,audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol,audioCtx.currentTime);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    osc.stop(audioCtx.currentTime+dur);
+  }catch(e){
+    console.log("Error tono:", e);
+  }
+}
+
+function sonidoMas(){ tone(900,0.08,"triangle",0.12); }
+
+function sonidoMenos(){
+  if(!document.getElementById("sonidos").checked || !audioCtx) return;
+  try{
+    let osc=audioCtx.createOscillator();
+    let gain=audioCtx.createGain();
+    osc.type="sine";
+    osc.frequency.setValueAtTime(500,audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(300,audioCtx.currentTime+0.15);
+    gain.gain.setValueAtTime(0.1,audioCtx.currentTime);
+    osc.connect(gain);
+    gain.connect(masterGain);
+    osc.start();
+    osc.stop(audioCtx.currentTime+0.15);
+  }catch(e){
+    console.log("Error sonidoMenos:", e);
+  }
+}
+
+function sonidoBuenas(){
+  tone(500,0.1);
+  setTimeout(()=>tone(700,0.1),120);
+  setTimeout(()=>tone(900,0.12),240);
+}
+
+function sonidoClick(){ tone(600,0.05,"square",0.05); }
+
+// ===============================
+// 🎙 VOZ ROBUSTA PARA WEBVIEW
+// ===============================
+function cargarVoces(){
+  if(!('speechSynthesis' in window)) return;
+
+  let voces = speechSynthesis.getVoices();
+  if(!voces.length){
+    setTimeout(cargarVoces,200);
+    return;
+  }
+
+  vozSeleccionada =
+    voces.find(v=>v.lang.includes("es-AR")) ||
+    voces.find(v=>v.lang.includes("es-ES")) ||
+    voces.find(v=>v.lang.includes("es")) ||
+    null;
+}
+
+if('speechSynthesis' in window){
+  cargarVoces();
+  speechSynthesis.onvoiceschanged = cargarVoces;
+}
+
+function hablar(texto){
+  if(!document.getElementById("voz").checked) return;
+  if(!('speechSynthesis' in window)) return;
+
+  try{
+    speechSynthesis.cancel();
+    let msg=new SpeechSynthesisUtterance(texto);
+    if(vozSeleccionada) msg.voice=vozSeleccionada;
+    msg.rate=0.95;
+    msg.pitch=1;
+    speechSynthesis.speak(msg);
+  }catch(e){
+    console.log("Error voz:", e);
+  }
+}
+
+// ===============================
+// ACORDEÓN
+// ===============================
+document.querySelectorAll(".header").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    desbloquearAudio();
+    document.querySelectorAll(".content").forEach(c=>c.style.display="none");
+    document.querySelectorAll(".header").forEach(h=>h.setAttribute("aria-expanded","false"));
+    btn.nextElementSibling.style.display="block";
+    btn.setAttribute("aria-expanded","true");
+    sonidoClick();
+  });
+});
+
+// ===============================
+// FLUJO
+// ===============================
+
+const iniciarBtn = document.getElementById("iniciarConfig");
+const radiosJuego = document.querySelectorAll('input[name="modo"]');
+
+// Función que revisa si alguna opción de juego está marcada
+function revisarOpcionesJuego() {
+  let algunaMarcada = Array.from(radiosJuego).some(r => r.checked);
+  iniciarBtn.disabled = !algunaMarcada;
+}
+
+// Revisar al cargar la página por seguridad
+revisarOpcionesJuego();
+
+// Escuchar cambios en los radios
+radiosJuego.forEach(r => r.addEventListener("change", revisarOpcionesJuego));
+
+document.getElementById("iniciarConfig").addEventListener("click", ()=>{
+  desbloquearAudio();
+  document.getElementById("menu").classList.add("hidden");
+  document.getElementById("configEquipos").classList.remove("hidden");
+});
+
+document.getElementById("comenzarPartida").addEventListener("click", ()=>{
+  desbloquearAudio();
+  nombre1=document.getElementById("equipo1").value||"Equipo A";
+  nombre2=document.getElementById("equipo2").value||"Equipo B";
+  document.getElementById("configEquipos").classList.add("hidden");
+  document.getElementById("partida").classList.remove("hidden");
+});
+
+function actualizar(){
+  score1=Math.max(0,score1);
+  score2=Math.max(0,score2);
+  score1=Math.min(30,score1);
+  score2=Math.min(30,score2);
+
+  document.getElementById("score1").textContent=score1;
+  document.getElementById("score2").textContent=score2;
+
+  if(score1>=16 && !buenas1){ buenas1=true; hablar(nombre1+" está en las buenas"); sonidoBuenas(); }
+  if(score2>=16 && !buenas2){ buenas2=true; hablar(nombre2+" está en las buenas"); sonidoBuenas(); }
+
+  if(score1>=30 || score2>=30){
+    let ganador=score1>=30?nombre1:nombre2;
+    document.getElementById("winnerMessage").textContent=
+      ganador+" ganó la partida con 30 puntos.";
+    document.getElementById("nuevaPartida").classList.remove("hidden");
+    document.querySelectorAll("#partida button").forEach(b=>{
+      if(b.id!=="nuevaPartida") b.disabled=true;
+    });
+    hablar("Fin de partida. Ganador "+ganador);
+  }
+}
+
+document.getElementById("mas1").addEventListener("click", ()=>{desbloquearAudio();score1++;sonidoMas();hablar(nombre1+" "+score1);actualizar();});
+document.getElementById("menos1").addEventListener("click", ()=>{desbloquearAudio();score1--;sonidoMenos();hablar(nombre1+" "+score1);actualizar();});
+document.getElementById("mas2").addEventListener("click", ()=>{desbloquearAudio();score2++;sonidoMas();hablar(nombre2+" "+score2);actualizar();});
+document.getElementById("menos2").addEventListener("click", ()=>{desbloquearAudio();score2--;sonidoMenos();hablar(nombre2+" "+score2);actualizar();});
+
+document.getElementById("leerMarcador").addEventListener("click", ()=>{
+  desbloquearAudio();
+  hablar(nombre1+" tiene "+score1+" puntos. "+nombre2+" tiene "+score2+" puntos.");
+});
+
+document.getElementById("nuevaPartida").addEventListener("click", ()=>{
+  location.reload();
+});
+
+});
+</script>
+
+</body>
+</html>
