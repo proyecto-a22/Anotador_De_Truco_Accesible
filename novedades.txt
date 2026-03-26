@@ -1,1 +1,12 @@
-Hola!
+20.03 - Juev, 26/03/26
+1) Reducido el menú principal, quitando el menú de accesibilidad, e implementándolo en más opciones.
+2) Agregado música en el menú principal.
+3) Modificado el menú más opciones, agregando barras deslizantes de volúmen a sonidos del sistema, música en menú, y música en partida.
+4) Implementado una pantalla de bienvenida, la cual, da inicio a los sonidos durante toda la interacción con la página.
+5) reducido código inecesario.
+Nota: Queda mucho por mejorar, y es seguro nuevas actualizaciones futuras.
+
+20.00 - Juev, 26/03/26
+Bienvenidos.
+Como verán, hemos implementado un sistema de novedades dentro de la aplicación, en donde podrán comprovar cada actualización de esta aplicación.
+Apartir de hoy, cada cambio se verá notificado aquí, siendo este, el primer mensaje, y para que no tengan que deslizar hacia abajo, cada nueva novedad se incluirá en primera línea desde este momento.
