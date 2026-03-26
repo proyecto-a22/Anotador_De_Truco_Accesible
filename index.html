@@ -47,7 +47,6 @@ button{
 }
 button:disabled{
   background:#555;
-  cursor:not-allowed;
 }
 .score-row{
   display:flex;
@@ -71,15 +70,41 @@ button:disabled{
   font-size:20px;
   font-weight:bold;
 }
+
+/* bienvenida */
+#welcome{
+  position:fixed;
+  inset:0;
+  background:#2e2b26;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
+}
+
+/* sliders */
+.slider-container{
+  margin-top:10px;
+}
+input[type="range"]{
+  width:80%;
+}
 </style>
 </head>
 <body>
+
+<div id="welcome">
+  <h1>Anotador de Truco</h1>
+  <p>Bienvenido. Presioná el botón para comenzar.</p>
+  <button id="entrar">Entrar</button>
+</div>
 
 <h1>Anotador de Truco</h1>
 
 <div id="liveRegion" aria-live="assertive" style="position:absolute;left:-9999px;"></div>
 
-<div id="menu">
+<div id="menu" class="hidden">
 
 <div class="section">
 <button type="button" class="header" aria-expanded="false">Juego</button>
@@ -90,23 +115,33 @@ button:disabled{
 </div>
 </div>
 
-<div class="section">
-<button type="button" class="header" aria-expanded="false">Accesibilidad</button>
-<div class="content">
-<label><input type="checkbox" id="voz"> Indicaciones en voz alta</label><br>
-<label><input type="checkbox" id="sonidos"> Sonidos del sistema</label>
-</div>
-</div>
+<button type="button" id="verNovedades">Novedades</button>
 
 <div class="section">
 <button type="button" class="header" aria-expanded="false">Más opciones</button>
-<div class="content">
-<label><input type="checkbox" id="musicaMenu"> Música en menú</label><br>
+<div class="content"><br>
+
+<label><input type="checkbox" id="voz"> Indicaciones en voz alta</label><br>
+
+<label><input type="checkbox" id="sonidos" checked> Sonidos del sistema</label>
+<div class="slider-container">
+<input type="range" id="volSonidos" min="0" max="100" value="50" disabled>
+</div>
+
+<label><input type="checkbox" id="musicaMenu" checked> Música en menú</label>
+<div class="slider-container">
+<input type="range" id="volMenu" min="0" max="100" value="50" disabled>
+</div>
+
 <label><input type="checkbox" id="musicaPartida"> Música durante partida</label>
+<div class="slider-container">
+<input type="range" id="volPartida" min="0" max="100" value="50" disabled>
+</div>
+
 </div>
 </div>
 
-<button type="button" id="iniciarConfig" disabled>Iniciar juego</button>
+<button type="button" id="iniciarConfig" disabled>Validar</button>
 </div>
 
 <div id="configEquipos" class="hidden">
@@ -117,20 +152,28 @@ button:disabled{
 <button type="button" id="comenzarPartida" disabled>Iniciar partida</button>
 </div>
 
+<div id="pantallaNovedades" class="hidden">
+  <h2>Novedades</h2>
+
+  <pre id="contenidoNovedades" style="white-space:pre-wrap;"></pre>
+
+  <button type="button" id="volverMenu">Volver</button>
+</div>
+
 <div id="partida" class="hidden">
 
 <div class="score-row">
 
 <div class="score-side">
-<button type="button" id="menos1">-1</button>
-<button type="button" id="mas1">+1</button>
-<div id="score1" class="score-number">0</div>
+<button type="button" id="menos1" aria-label="Restar un punto al equipo uno">-1</button>
+<button type="button" id="mas1" aria-label="Sumar un punto al equipo uno">+1</button>
+<div id="score1" class="score-number" aria-live="polite">0</div>
 </div>
 
 <div class="score-side">
-<div id="score2" class="score-number">0</div>
-<button type="button" id="mas2">+1</button>
-<button type="button" id="menos2">-1</button>
+<div id="score2" class="score-number" aria-live="polite">0</div>
+<button type="button" id="mas2" aria-label="Sumar un punto al equipo dos">+1</button>
+<button type="button" id="menos2" aria-label="Restar un punto al equipo dos">-1</button>
 </div>
 
 </div>
@@ -152,6 +195,138 @@ let vozSeleccionada=null;
 let buenas1=false, buenas2=false;
 let audioDesbloqueado=false;
 
+/* AUDIO RANDOM */
+const tracks=[
+ "music1.ogg",
+ "music2.ogg",
+ "music3.ogg",
+ "music4.ogg",
+ "music5.ogg",
+ "music6.ogg"
+];
+let musicaMenuAudio = new Audio();
+let musicaPartidaAudio = new Audio();
+
+function randomTrack(){
+  return tracks[Math.floor(Math.random()*tracks.length)];
+}
+
+function playRandom(audio){
+  audio.src = randomTrack();
+  audio.play();
+}
+
+function loopRandom(audio){
+  audio.onended = ()=> playRandom(audio);
+}
+
+/* MUSICA MENU */
+function iniciarMusicaMenu(){
+  playRandom(musicaMenuAudio);
+  loopRandom(musicaMenuAudio);
+}
+
+function detenerMusicaMenu(){
+  musicaMenuAudio.pause();
+}
+
+/* MUSICA PARTIDA */
+function iniciarMusicaPartida(){
+  playRandom(musicaPartidaAudio);
+  loopRandom(musicaPartidaAudio);
+}
+
+function detenerMusicaPartida(){
+  musicaPartidaAudio.pause();
+}
+
+/* sliders enable/disable + volumen */
+function vincularCheckboxSlider(checkId, sliderId, audio){
+  const check = document.getElementById(checkId);
+  const slider = document.getElementById(sliderId);
+
+  function actualizar(){
+    slider.disabled = !check.checked;
+
+    if(check.checked){
+      audio.volume = slider.value/100;
+    }else{
+      audio.pause();
+    }
+  }
+
+  check.addEventListener("change", ()=>{
+    actualizar();
+
+    if(checkId === "musicaMenu"){
+      if(check.checked) iniciarMusicaMenu();
+      else detenerMusicaMenu();
+    }
+
+    if(checkId === "musicaPartida"){
+      if(check.checked) iniciarMusicaPartida();
+      else detenerMusicaPartida();
+    }
+  });
+
+  slider.addEventListener("input", ()=>{
+    audio.volume = slider.value/100;
+  });
+
+  actualizar();
+}
+
+vincularCheckboxSlider("sonidos","volSonidos", new Audio());
+vincularCheckboxSlider("musicaMenu","volMenu", musicaMenuAudio);
+vincularCheckboxSlider("musicaPartida","volPartida", musicaPartidaAudio);
+
+const btnNovedades = document.getElementById("verNovedades");
+const pantallaNovedades = document.getElementById("pantallaNovedades");
+const contenidoNovedades = document.getElementById("contenidoNovedades");
+
+btnNovedades.addEventListener("click", ()=>{
+  desbloquearAudio();
+
+  document.getElementById("menu").classList.add("hidden");
+  pantallaNovedades.classList.remove("hidden");
+
+  fetch("novedades.txt")
+    .then(res => res.text())
+    .then(texto => {
+      contenidoNovedades.textContent = texto;
+    })
+    .catch(()=>{
+      contenidoNovedades.textContent = "No se pudieron cargar las novedades.";
+    });
+});
+
+document.getElementById("volverMenu").addEventListener("click", ()=>{
+  pantallaNovedades.classList.add("hidden");
+  document.getElementById("menu").classList.remove("hidden");
+});
+ 
+/* bienvenida */
+document.getElementById("entrar").addEventListener("click", ()=>{
+  desbloquearAudio();
+
+  document.getElementById("welcome").style.display="none";
+  document.getElementById("menu").classList.remove("hidden");
+  /*  forzar música de menú si está activada */
+  if(document.getElementById("musicaMenu").checked){
+    iniciarMusicaMenu();
+
+    const slider = document.getElementById("volMenu");
+    musicaMenuAudio.volume = slider.value / 100;
+  }
+});
+
+/* vibración accesible */
+function vibrar(p){
+ if(navigator.vibrate){
+  navigator.vibrate(p);
+ }
+}
+
 /* Región ARIA */
 function anunciar(texto){
   const region = document.getElementById("liveRegion");
@@ -166,8 +341,7 @@ function anunciarMarcador(texto){
     anunciar(texto);
   }
 }
-
-/* Audio */
+/* Audio base */
 function desbloquearAudio(){
   if(audioDesbloqueado) return;
   try{
@@ -208,19 +382,45 @@ function hablar(texto){
   speechSynthesis.speak(msg);
 }
 
-/* Acordeón */
-document.querySelectorAll(".header").forEach(btn=>{
+/* Acordeón + teclado */
+const headers = Array.from(document.querySelectorAll(".header"));
+
+function abrirMenu(btn){
+  const content = btn.nextElementSibling;
+
+  document.querySelectorAll(".content").forEach(c=>c.style.display="none");
+  document.querySelectorAll(".header").forEach(h=>h.setAttribute("aria-expanded","false"));
+
+  content.style.display="block";
+  btn.setAttribute("aria-expanded","true");
+
+  const foco = content.querySelector("input,button");
+  if(foco) foco.focus();
+}
+
+headers.forEach((btn, index)=>{
   btn.addEventListener("click", ()=>{
     desbloquearAudio();
-    const content = btn.nextElementSibling;
     const abierto = btn.getAttribute("aria-expanded")==="true";
-
-    document.querySelectorAll(".content").forEach(c=>c.style.display="none");
-    document.querySelectorAll(".header").forEach(h=>h.setAttribute("aria-expanded","false"));
-
     if(!abierto){
-      content.style.display="block";
-      btn.setAttribute("aria-expanded","true");
+      abrirMenu(btn);
+    }
+  });
+
+  btn.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter" || e.key === " "){
+      e.preventDefault();
+      btn.click();
+    }
+
+    if(e.key === "ArrowDown"){
+      e.preventDefault();
+      headers[(index+1)%headers.length].focus();
+    }
+
+    if(e.key === "ArrowUp"){
+      e.preventDefault();
+      headers[(index-1+headers.length)%headers.length].focus();
     }
   });
 });
@@ -237,11 +437,11 @@ function revisarOpcionesJuego() {
   iniciarBtn.disabled = !algunaMarcada;
 }
 revisarOpcionesJuego();
+
 radiosJuego.forEach(r => r.addEventListener("change", ()=>{
   revisarOpcionesJuego();
   revisarCamposIniciales();
 }));
-
 function revisarCamposIniciales(){
 
   const modo = document.querySelector('input[name="modo"]:checked')?.value;
@@ -259,8 +459,8 @@ function revisarCamposIniciales(){
   }
 
   else if(modo === "3"){
-    input1.maxLength = 6;   // ← CAMBIO AQUÍ
-    input2.maxLength = 6;   // ← CAMBIO AQUÍ
+    input1.maxLength = 6;
+    input2.maxLength = 6;
     comenzarBtn.disabled = !(input1.value.trim() && input2.value.trim());
   }
 
@@ -275,19 +475,32 @@ input2.addEventListener("input", revisarCamposIniciales);
 document.getElementById("iniciarConfig").addEventListener("click", ()=>{
   desbloquearAudio();
   revisarCamposIniciales();
+
   document.getElementById("menu").classList.add("hidden");
   document.getElementById("configEquipos").classList.remove("hidden");
+
+  if(document.getElementById("musicaMenu").checked){
+    detenerMusicaMenu();
+  }
 });
 
 document.getElementById("comenzarPartida").addEventListener("click", ()=>{
   desbloquearAudio();
+
   nombre1 = input1.value.trim() || "Equipo A";
   nombre2 = input2.value.trim() || "Equipo B";
+
   document.getElementById("configEquipos").classList.add("hidden");
   document.getElementById("partida").classList.remove("hidden");
+
+  if(document.getElementById("musicaPartida").checked){
+    iniciarMusicaPartida();
+  }
+
+  document.getElementById("mas1").focus();
 });
 
-/* EL RESTO DEL MARCADOR PERMANECE EXACTAMENTE IGUAL */
+/* MARCADOR */
 
 function actualizar(){
   score1=Math.max(0,Math.min(30,score1));
@@ -314,12 +527,18 @@ function actualizar(){
 
   if(score1>=30 || score2>=30){
     let ganador=score1>=30?nombre1:nombre2;
+
     document.getElementById("winnerMessage").textContent=
       ganador+" ganó la partida con 30 puntos.";
+
     document.getElementById("nuevaPartida").classList.remove("hidden");
+
     document.querySelectorAll("#partida button").forEach(b=>{
       if(b.id!=="nuevaPartida") b.disabled=true;
     });
+
+    vibrar([200,100,200]);
+
     anunciarMarcador("Fin de partida. Ganador "+ganador+" con 30 puntos.");
     anuncioEspecial=true;
   }
@@ -329,6 +548,7 @@ function actualizar(){
 
 function cambiarPuntaje(equipo, tipo){
   desbloquearAudio();
+
   let anterior = equipo===1?score1:score2;
 
   if(equipo===1){
@@ -343,6 +563,7 @@ function cambiarPuntaje(equipo, tipo){
   if(actual!==anterior && !eventoEspecial){
     let nombre = equipo===1?nombre1:nombre2;
     anunciarMarcador(nombre+" tiene "+actual+" puntos.");
+    vibrar(50);
   }
 }
 
@@ -368,6 +589,11 @@ document.getElementById("nuevaPartida").addEventListener("click", ()=>{
   document.querySelectorAll("#partida button").forEach(b=>{
     b.disabled=false;
   });
+
+  if(document.getElementById("musicaPartida").checked){
+    detenerMusicaPartida();
+    iniciarMusicaPartida();
+  }
 
   actualizar();
 });
